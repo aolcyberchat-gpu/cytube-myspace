@@ -10,7 +10,7 @@
  *   4. NAVBAR          — brand emoji + gold text patched via JS
  *   5. ANIMATIONS      — roses + flying symbols, chat-triggered
  *   6. PROFILE         — owner contact card w/ emoji links
- *   7. CHAT            — emoji appender + border flash trigger
+ *   7. CHAT            — emoji appender + messagebuffer flash
  *   8. TOKENS          — [scaffold] skull points system
  *   9. VOTING          — [scaffold] song / queue voting
  *  10. VISUALIZER      — [scaffold] Winamp-style audio reactive UI
@@ -18,14 +18,21 @@
  * ============================================================
  *
  *  DOM selectors confirmed against live CyTube HTML:
- *   nav.navbar.navbar-inverse.navbar-fixed-top
- *   .navbar-header  a.navbar-brand            ← "CyTube" text
- *   span#welcome                               ← "Welcome, username"
- *   input#logout                               ← logout submit button
- *   div#chatheader                             ← top bar of chat column
- *   div.linewrap#messagebuffer                 ← message list
- *   input#chatline                             ← chat input
- *   div#userlist                               ← online users panel
+ *   nav.navbar.navbar-inverse          ← top nav bar
+ *   a.navbar-brand                     ← "CyTube" brand link
+ *   span#welcome                       ← "Welcome, username"
+ *   input#logout                       ← logout submit button
+ *   div#chatheader                     ← top bar of chat column
+ *   div.linewrap#messagebuffer         ← message list
+ *   input#chatline                     ← chat text input
+ *   div#userlist                       ← online users panel
+ *   div#controlsrow                    ← full-width bottom toolbar row
+ *   div#leftcontrols                   ← New Poll, Emote List buttons
+ *   div#rightcontrols                  ← media add / video controls
+ *   div#videocontrols                  ← Queue next/last + player btns
+ *   button#newpollbtn                  ← New Poll
+ *   button#emotelistbtn                ← Emote List
+ *   button#showmediaurl                ← Add video from URL (🔍/+)
  * ============================================================
  */
 
@@ -51,7 +58,7 @@
         },
 
         navbar: {
-            brandEmoji: '\uD83C\uDFE0',  // 🏠 home — swap to 💀 🌹 ⛧ etc.
+            brandEmoji: '\uD83C\uDFE0',  // 🏠 — swap to 💀 🌹 ⛧ etc.
             brandText:  'CyTube'
         },
 
@@ -59,12 +66,10 @@
             fallingChar:   '\uD83C\uDF39',  // 🌹
             fallingCount:  5,
             fallingDurSec: 10,
-
             flyingChars:   ['\uD83D\uDC80', '\u2620\uFE0F', '\uD83D\uDC94', '\uD83E\uDD87'],
             flyingCount:   6,
             flyingDurSec:  8,
-
-            showDurMs: 12000  // must be >= fallingDurSec * 1000
+            showDurMs:     12000
         },
 
         chat: {
@@ -98,8 +103,7 @@
     function injectFont() {
         if (document.getElementById('rm-font')) return;
         var l = document.createElement('link');
-        l.id   = 'rm-font';
-        l.rel  = 'stylesheet';
+        l.id = 'rm-font'; l.rel = 'stylesheet';
         l.href = 'https://fonts.googleapis.com/css2?family=Special+Elite&display=swap';
         document.head.appendChild(l);
     }
@@ -115,8 +119,11 @@
         var gld = t.gold;
         var a   = CFG.animations;
 
-        var navBg  = 'rgba(26,0,26,0.65)';
-        var navBd  = 'rgba(255,0,222,0.35)';
+        var navBg   = 'rgba(26,0,26,0.65)';
+        var navBd   = 'rgba(255,0,222,0.35)';
+        var ctrlBg  = 'rgba(20,0,30,0.82)';     // controls row fill — deep purple
+        var btnBg   = 'rgba(40,0,50,0.9)';       // individual button fill
+        var btnHov  = 'rgba(255,0,222,0.18)';    // button hover fill
 
         var css = [
 
@@ -125,77 +132,52 @@
             'background-size:400% 400%;animation:rmGlow 10s ease infinite;min-height:100vh;margin:0}',
             '@keyframes rmGlow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}',
 
-            /* ---- Navbar — confirmed: nav.navbar.navbar-inverse.navbar-fixed-top ---- */
+            /* ---- Navbar ---- */
             'nav.navbar.navbar-inverse{',
-            'background:' + navBg + '!important;',
-            'background-image:none!important;',
+            'background:' + navBg + '!important;background-image:none!important;',
             'border-color:' + navBd + '!important;',
             'backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);',
             'box-shadow:0 2px 14px rgba(255,0,222,0.18)!important}',
 
-            /* Brand "CyTube" — a.navbar-brand */
-            'nav.navbar.navbar-inverse a.navbar-brand{',
-            'color:' + gld + '!important;',
+            'nav.navbar.navbar-inverse a.navbar-brand{color:' + gld + '!important;',
             'text-shadow:0 0 8px ' + ac + ',0 0 2px #fff!important;',
-            'font-family:"Special Elite",serif!important;',
-            'letter-spacing:0.04em}',
+            'font-family:"Special Elite",serif!important;letter-spacing:0.04em}',
             'nav.navbar.navbar-inverse a.navbar-brand:hover{color:#fff!important}',
 
-            /* Welcome span — span#welcome */
-            'span#welcome{',
-            'color:' + gld + '!important;',
-            'font-family:"Special Elite",serif!important;',
-            'text-shadow:0 0 6px ' + ac + '!important;',
-            'font-size:13px}',
+            'span#welcome{color:' + gld + '!important;font-family:"Special Elite",serif!important;',
+            'text-shadow:0 0 6px ' + ac + '!important;font-size:13px}',
 
-            /* Logout input — input#logout (it's a form submit, not an anchor) */
-            'input#logout{',
-            'color:' + gld + '!important;',
-            'background:transparent!important;',
-            'border:none!important;',
-            'font-family:"Special Elite",serif!important;',
-            'font-size:13px;',
-            'text-shadow:0 0 5px ' + ac + '!important;',
-            'cursor:pointer;padding:0;margin-left:8px}',
+            'input#logout{color:' + gld + '!important;background:transparent!important;',
+            'border:none!important;font-family:"Special Elite",serif!important;font-size:13px;',
+            'text-shadow:0 0 5px ' + ac + '!important;cursor:pointer;padding:0;margin-left:8px}',
             'input#logout:hover{color:#fff!important;text-shadow:0 0 8px ' + ac + '!important}',
 
-            /* Other nav links */
             'nav.navbar.navbar-inverse .navbar-nav>li>a{',
             'color:rgba(255,215,0,0.8)!important;font-family:"Special Elite",serif!important}',
             'nav.navbar.navbar-inverse .navbar-nav>li>a:hover{',
             'color:#fff!important;background:rgba(255,0,222,0.12)!important}',
 
-            /* ---- Chat area ---- */
+            /* ---- Chat area — kept plain, not the focal point ---- */
             '#chatwrap{background:transparent}',
 
-            /* chatheader — top bar above messagebuffer */
-            '#chatheader{',
-            'background:rgba(20,0,20,0.7)!important;',
-            'border:1px solid ' + navBd + ';',
-            'border-radius:4px 4px 0 0}',
+            '#chatheader{background:rgba(20,0,20,0.7)!important;',
+            'border:1px solid ' + navBd + ';border-radius:4px 4px 0 0}',
 
-            /* userlist panel */
-            '#userlist{',
-            'background:rgba(10,0,10,0.6)!important;',
+            '#userlist{background:rgba(10,0,10,0.6)!important;',
             'border-right:1px solid ' + navBd + '}',
-            '.userlist_item{',
-            'font-family:"Special Elite",serif!important;',
+            '.userlist_item{font-family:"Special Elite",serif!important;',
             'color:' + gld + '!important;font-size:12px}',
 
-            /* messagebuffer */
-            '#messagebuffer{',
-            'background:rgba(10,0,10,0.5)!important;',
-            'border:1px solid ' + navBd + ';',
-            'border-top:none;transition:border-color 0.3s ease,box-shadow 0.3s ease}',
+            /* messagebuffer — plain dark background, subtle border, no flash */
+            '#messagebuffer{background:rgba(10,0,10,0.5)!important;',
+            'border:1px solid ' + navBd + ';border-top:none}',
 
-            '#messagebuffer div{',
-            'background:rgba(0,0,0,.65);padding:5px;margin-bottom:4px;border-radius:4px;',
-            'font-family:"Special Elite",serif;font-size:13px;line-height:1.5;',
-            'text-shadow:0 0 4px #fff,0 0 8px #fff,0 0 12px ' + ac + '}',
+            '#messagebuffer div{background:rgba(0,0,0,.6);padding:5px;margin-bottom:4px;',
+            'border-radius:4px;font-family:"Special Elite",serif;font-size:13px;line-height:1.5;',
+            'color:#ddd}',
 
-            /* Username spans inside messages */
-            '#messagebuffer div span{',
-            'font-weight:bold;color:' + gld + ';',
+            /* Username spans */
+            '#messagebuffer div span{font-weight:bold;color:' + gld + ';',
             'font-family:"Special Elite",serif;',
             'text-shadow:0 0 5px #fff,0 0 10px #fff,0 0 15px ' + ac + ';',
             'animation:rmSparkle 1s infinite}',
@@ -203,29 +185,89 @@
             '0%,100%{text-shadow:0 0 5px #fff,0 0 10px #fff,0 0 15px ' + ac + '}',
             '50%{text-shadow:0 0 10px #fff,0 0 20px #fff,0 0 30px ' + ac + '}}',
 
-            /* Chat input */
-            '#chatline{',
-            'font-family:"Special Elite",serif!important;',
-            'background:rgba(0,0,0,0.75)!important;',
-            'color:' + gld + '!important;',
-            'border:1px solid ' + navBd + '!important;',
-            'border-top:none!important;',
-            'border-radius:0 0 4px 4px;',
-            'box-shadow:inset 0 0 6px rgba(255,0,222,0.15)!important}',
-            '#chatline:focus{',
-            'border-color:' + ac + '!important;',
-            'box-shadow:inset 0 0 8px rgba(255,0,222,0.3),0 0 6px rgba(255,0,222,0.2)!important}',
-
             /*
-             * CHAT FLASH — fires on messagebuffer and chatheader borders, NOT chatwrap.
-             * Uses border-color + box-shadow pulse so only the inner chat borders react.
+             * CHATLINE — visible pink neon border, glows on focus
+             * Connects visually to the messagebuffer above it
              */
+            '#chatline{font-family:"Special Elite",serif!important;',
+            'background:rgba(0,0,0,0.8)!important;',
+            'color:' + gld + '!important;',
+            'border:2px solid ' + ac + '!important;',   /* pink neon border, always visible */
+            'border-top:1px solid rgba(255,0,222,0.2)!important;',
+            'border-radius:0 0 4px 4px;',
+            'box-shadow:0 0 6px rgba(255,0,222,0.25),inset 0 0 4px rgba(255,0,222,0.1)!important}',
+            '#chatline:focus{',
+            'border-color:#fff!important;',
+            'box-shadow:0 0 12px rgba(255,0,222,0.6),inset 0 0 6px rgba(255,0,222,0.2)!important}',
+            '#chatline::placeholder{color:rgba(255,215,0,0.35)!important}',
+
+            /* messagebuffer flash — only on #messagebuffer, subtle pulse */
             '@keyframes rmMsgFlash{',
-            '0%{border-color:' + navBd + ';box-shadow:none}',
-            '40%{border-color:' + ac + ';box-shadow:0 0 12px 2px rgba(255,0,222,0.5)}',
-            '100%{border-color:' + navBd + ';box-shadow:none}}',
+            '0%{box-shadow:none}',
+            '40%{box-shadow:0 0 10px 2px rgba(255,0,222,0.45)}',
+            '100%{box-shadow:none}}',
             '#messagebuffer.rm-flash{animation:rmMsgFlash 0.5s ease-out!important}',
-            '#chatheader.rm-flash{animation:rmMsgFlash 0.5s ease-out!important}',
+
+            /* ============================================================
+               CONTROLS ROW — #controlsrow
+               Contains #leftcontrols (New Poll, Emote List)
+               and #rightcontrols (media add, video controls)
+               Styled to match the profile card pill buttons:
+               deep purple fill, pink neon border, gold text
+               ============================================================ */
+            '#controlsrow{',
+            'background:' + ctrlBg + ';',
+            'border:1px solid ' + ac + ';',
+            'border-radius:6px;',
+            'margin:6px 0;',
+            'padding:6px 8px;',
+            'box-shadow:0 0 10px rgba(255,0,222,0.2),inset 0 0 6px rgba(40,0,60,0.4)}',
+
+            /* All buttons inside controlsrow */
+            '#controlsrow .btn,#controlsrow .btn-default,#controlsrow .btn-sm{',
+            'background:' + btnBg + '!important;',
+            'color:' + gld + '!important;',
+            'border:1px solid ' + ac + '!important;',
+            'font-family:"Special Elite",serif!important;',
+            'font-size:12px;',
+            'text-shadow:0 0 4px rgba(255,215,0,0.4);',
+            'box-shadow:0 0 5px rgba(255,0,222,0.15);',
+            'transition:all 0.15s ease}',
+
+            '#controlsrow .btn:hover,#controlsrow .btn-default:hover,#controlsrow .btn-sm:hover{',
+            'background:' + btnHov + '!important;',
+            'color:#fff!important;',
+            'border-color:#fff!important;',
+            'box-shadow:0 0 10px rgba(255,0,222,0.5)!important;',
+            'text-shadow:0 0 6px #fff}',
+
+            /* Active/pressed state */
+            '#controlsrow .btn:active,#controlsrow .btn.active{',
+            'background:rgba(255,0,222,0.3)!important;',
+            'box-shadow:inset 0 0 8px rgba(255,0,222,0.4)!important}',
+
+            /* Disabled buttons (e.g. Queue next when nothing queued) */
+            '#controlsrow .btn[disabled],#controlsrow .btn.disabled{',
+            'color:rgba(255,215,0,0.3)!important;',
+            'border-color:rgba(255,0,222,0.2)!important;',
+            'box-shadow:none!important;cursor:not-allowed}',
+
+            /* Input fields inside controlsrow (URL add box etc.) */
+            '#controlsrow .form-control,#controlsrow input[type="text"]{',
+            'background:rgba(0,0,0,0.7)!important;',
+            'color:' + gld + '!important;',
+            'border:1px solid ' + ac + '!important;',
+            'font-family:"Special Elite",serif!important;font-size:12px}',
+            '#controlsrow .form-control:focus,#controlsrow input[type="text"]:focus{',
+            'border-color:#fff!important;',
+            'box-shadow:0 0 8px rgba(255,0,222,0.4)!important}',
+
+            /* input-group-addon (e.g. "Guest login" label) */
+            '#controlsrow .input-group-addon{',
+            'background:' + btnBg + '!important;',
+            'color:' + gld + '!important;',
+            'border-color:' + ac + '!important;',
+            'font-family:"Special Elite",serif!important}',
 
             /* ---- Animations wrapper ---- */
             '#rm-anim{opacity:0;transition:opacity 1.5s ease;pointer-events:none}',
@@ -234,12 +276,14 @@
             '.rm-fall{position:fixed;top:-1.5em;font-size:20px;line-height:1;',
             'animation:rmFall ' + a.fallingDurSec + 's linear infinite;',
             'z-index:9999;pointer-events:none;will-change:transform;user-select:none}',
-            '@keyframes rmFall{0%{transform:translateY(-2em) rotate(0deg)}100%{transform:translateY(101vh) rotate(720deg)}}',
+            '@keyframes rmFall{0%{transform:translateY(-2em) rotate(0deg)}',
+            '100%{transform:translateY(101vh) rotate(720deg)}}',
 
             '.rm-fly{position:fixed;left:-1.5em;font-size:20px;line-height:1;',
             'animation:rmFly ' + a.flyingDurSec + 's linear infinite;',
             'z-index:9999;pointer-events:none;will-change:transform;user-select:none}',
-            '@keyframes rmFly{0%{transform:translateX(-2em) rotate(0deg)}100%{transform:translateX(101vw) rotate(360deg)}}',
+            '@keyframes rmFly{0%{transform:translateX(-2em) rotate(0deg)}',
+            '100%{transform:translateX(101vw) rotate(360deg)}}',
 
             /* ---- Misc ---- */
             '#currenttitle::after{content:" \u2728"}',
@@ -279,54 +323,38 @@
 
 
     /* ============================================================
-       4. NAVBAR — patch brand text to prepend emoji via JS
-       CSS can style the element but can't prepend content to
-       existing text without ::before (which CyTube may override).
-       JS textContent swap is the reliable path.
+       4. NAVBAR
        ============================================================ */
     function patchNavbar() {
         var brand = document.querySelector('nav.navbar.navbar-inverse a.navbar-brand');
-        if (brand) {
-            brand.textContent = CFG.navbar.brandEmoji + ' ' + CFG.navbar.brandText;
-        }
-
-        // The logout element is input#logout (type=submit), not an anchor.
-        // Its "Log out" value is already fine — we just style it via CSS.
-        // Optionally prepend a skull to it:
-        // No textContent on inputs — use a wrapper trick only if desired later.
+        if (brand) brand.textContent = CFG.navbar.brandEmoji + ' ' + CFG.navbar.brandText;
     }
 
 
     /* ============================================================
-       5. ANIMATIONS — opacity-toggle, always running
+       5. ANIMATIONS
        ============================================================ */
     var Animations = (function () {
-        var wrap      = null;
-        var hideTimer = null;
+        var wrap = null, hideTimer = null;
 
         function _build() {
-            var a    = CFG.animations;
-            var frag = document.createDocumentFragment();
-
+            var a = CFG.animations, frag = document.createDocumentFragment();
             for (var i = 0; i < a.fallingCount; i++) {
                 var f = document.createElement('span');
-                f.className   = 'rm-fall';
-                f.textContent = a.fallingChar;
-                f.style.left           = (10 + i * 20) + '%';
+                f.className = 'rm-fall'; f.textContent = a.fallingChar;
+                f.style.left = (10 + i * 20) + '%';
                 f.style.animationDelay = (i * (a.fallingDurSec / a.fallingCount)) + 's';
                 frag.appendChild(f);
             }
-
             for (var j = 0; j < a.flyingCount; j++) {
                 var s = document.createElement('span');
-                s.className   = 'rm-fly';
+                s.className = 'rm-fly';
                 s.textContent = a.flyingChars[j % a.flyingChars.length];
-                s.style.top            = (10 + j * 13) + '%';
+                s.style.top = (10 + j * 13) + '%';
                 s.style.animationDelay = (j * (a.flyingDurSec / a.flyingCount)) + 's';
                 frag.appendChild(s);
             }
-
-            wrap    = document.createElement('div');
+            wrap = document.createElement('div');
             wrap.id = 'rm-anim';
             wrap.appendChild(frag);
             document.body.appendChild(wrap);
@@ -341,16 +369,13 @@
             }, CFG.animations.showDurMs);
         }
 
-        // Flash the inner chat borders — messagebuffer + chatheader
-        // NOT chatwrap (the outer column)
+        // Flash only the messagebuffer border
         function flashChat() {
-            ['messagebuffer', 'chatheader'].forEach(function (id) {
-                var el = document.getElementById(id);
-                if (!el) return;
-                el.classList.remove('rm-flash');
-                void el.offsetWidth; // force reflow so animation re-triggers
-                el.classList.add('rm-flash');
-            });
+            var el = document.getElementById('messagebuffer');
+            if (!el) return;
+            el.classList.remove('rm-flash');
+            void el.offsetWidth;
+            el.classList.add('rm-flash');
         }
 
         return { build: _build, trigger: trigger, flashChat: flashChat };
@@ -361,51 +386,26 @@
        6. PROFILE CARD
        ============================================================ */
     function buildProfile() {
-        var p   = CFG.profile;
-        var sec = document.createElement('div');
-        sec.id  = 'rm-profile';
-
-        var img = document.createElement('img');
-        img.src = p.image;
-        img.alt = p.name;
-
-        var info = document.createElement('div');
-        info.id  = 'rm-profile-info';
-
-        var h = document.createElement('div');
-        h.id  = 'rm-profile-heading';
+        var p = CFG.profile;
+        var sec = document.createElement('div'); sec.id = 'rm-profile';
+        var img = document.createElement('img'); img.src = p.image; img.alt = p.name;
+        var info = document.createElement('div'); info.id = 'rm-profile-info';
+        var h = document.createElement('div'); h.id = 'rm-profile-heading';
         h.textContent = p.name + ' \u2014 Contact Info';
-
-        var linksWrap = document.createElement('div');
-        linksWrap.id  = 'rm-profile-links';
-
+        var linksWrap = document.createElement('div'); linksWrap.id = 'rm-profile-links';
         var lf = document.createDocumentFragment();
         p.links.forEach(function (item) {
             var a = document.createElement('a');
-            a.href      = item.href;
-            a.className = 'rm-link';
-            a.title     = item.label;
+            a.href = item.href; a.className = 'rm-link'; a.title = item.label;
             if (item.ext) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
-
             var icon = document.createElement('span');
-            icon.className   = 'rm-link-icon';
-            icon.textContent = item.emoji;
-
+            icon.className = 'rm-link-icon'; icon.textContent = item.emoji;
             var lbl = document.createElement('span');
-            lbl.className   = 'rm-link-label';
-            lbl.textContent = item.label;
-
-            a.appendChild(icon);
-            a.appendChild(lbl);
-            lf.appendChild(a);
+            lbl.className = 'rm-link-label'; lbl.textContent = item.label;
+            a.appendChild(icon); a.appendChild(lbl); lf.appendChild(a);
         });
-
-        linksWrap.appendChild(lf);
-        info.appendChild(h);
-        info.appendChild(linksWrap);
-        sec.appendChild(img);
-        sec.appendChild(info);
-
+        linksWrap.appendChild(lf); info.appendChild(h); info.appendChild(linksWrap);
+        sec.appendChild(img); sec.appendChild(info);
         var cw = document.getElementById('chatwrap');
         (cw && cw.parentNode) ? cw.parentNode.insertBefore(sec, cw) : document.body.appendChild(sec);
     }
@@ -418,21 +418,16 @@
         var buf = document.getElementById('messagebuffer');
         if (!buf) return;
         var pool = CFG.chat.emojis;
-
         new MutationObserver(function (mutations) {
             for (var m = 0; m < mutations.length; m++) {
                 var nodes = mutations[m].addedNodes;
                 for (var n = 0; n < nodes.length; n++) {
                     var node = nodes[n];
-                    if (node.nodeType === 1
-                        && node.nodeName === 'DIV'
-                        && !node.querySelector('.rm-emoji')) {
-
+                    if (node.nodeType === 1 && node.nodeName === 'DIV' && !node.querySelector('.rm-emoji')) {
                         var sp = document.createElement('span');
-                        sp.className   = 'rm-emoji';
+                        sp.className = 'rm-emoji';
                         sp.textContent = ' ' + pool[new Date().getSeconds() % pool.length];
                         node.appendChild(sp);
-
                         Animations.trigger();
                         Animations.flashChat();
                     }
@@ -455,8 +450,8 @@
     ============================================================ */
     var RoomTokens = {
         init:    function () { if (!CFG.tokens.enabled) return; },
-        balance: function (/* user */) { return 0; },
-        award:   function (/* user, amount */) {}
+        balance: function () { return 0; },
+        award:   function () {}
     };
 
 
@@ -504,7 +499,6 @@
             || !document.getElementById('messagebuffer')) {
             return setTimeout(init, 500);
         }
-
         injectFont();
         injectStyles();
         patchNavbar();
@@ -514,14 +508,9 @@
         RoomTokens.init();
         RoomVoting.init();
         RoomVisualizer.init();
-
         window.Room = {
-            cfg:          CFG,
-            tokens:       RoomTokens,
-            voting:       RoomVoting,
-            visualizer:   RoomVisualizer,
-            reloadStyles: injectStyles,
-            patchNavbar:  patchNavbar
+            cfg: CFG, tokens: RoomTokens, voting: RoomVoting,
+            visualizer: RoomVisualizer, reloadStyles: injectStyles, patchNavbar: patchNavbar
         };
     }
 
